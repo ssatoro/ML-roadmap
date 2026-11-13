@@ -100,10 +100,39 @@ df_copy.insert(8, "сумма заказа", df_copy["количество"] * d
 df_copy.insert(9, "выручка", np.where(df_copy["статус"] == "оплачен", df_copy["сумма заказа"], np.nan))
 total_revenue = df_copy["выручка"].sum()
 print(df_copy)
+print("-----------------")
 
 df_anltc = df_copy.groupby("город", as_index=False, dropna=False).agg(
     выручка=("выручка", "sum"),
     колво_заказов=("статус", lambda x: x.eq("оплачен").sum()),
     колво_заказов_изв_сумм=("выручка", "count"),
     средняя_выручка=("выручка", "mean"))
-print(df_anltc)
+
+df_category_anltc = df_copy.groupby("категория", as_index=False).agg(
+    выручка=("выручка", "sum"),
+    колво_опл_заказов=("статус", lambda x: x.eq("оплачен").sum()),
+    колво_заказов_изв_сумм=("выручка", "count"),
+    средняя_выручка=("выручка", "mean"),
+    общее_колво_товаров=("количество", lambda x: x[df_copy.loc[x.index, "статус"].eq("оплачен")].sum())
+)
+
+df_elegible = df_copy.loc[df_copy["выручка"].notna()]
+df_big_orders = df_elegible.groupby("город", dropna=False, group_keys=False).apply(
+    lambda x: x.nlargest(2, "выручка").assign(город=x.name))[["id заказа", "город", "клиент", "категория", "выручка"]]
+
+
+mask = (df_copy["статус"].eq("оплачен").fillna(False) & df_copy["выручка"].notna())
+df_orders = df_copy.loc[mask, ["id заказа", "город", "выручка"]].copy()
+df_orders["ср. выручка по городу"] = df_copy.groupby("город", dropna=False, group_keys=False)["выручка"].transform("mean")
+df_orders["отклонение"] = df_orders["выручка"] - df_orders["ср. выручка по городу"]
+
+
+df_clients = df_copy.groupby("клиент", as_index=False).agg(
+    общая_выручка=("выручка", "sum"),
+    колво_опл_заказов=("статус", lambda x: x.eq("оплачен").sum()),
+    колво_опл_заказов_изв_сумм=("выручка", "count"),
+    ср_изв_выручка=("выручка", "mean"),
+    уник_категории=("категория", lambda x: x[df_copy.loc[x.index, "статус"].eq("оплачен").fillna(False)].nunique())
+)
+
+
